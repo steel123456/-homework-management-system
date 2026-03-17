@@ -1,155 +1,98 @@
-import { pgTable, serial, varchar, text, timestamp, boolean, integer, jsonb, index } from "drizzle-orm/pg-core"
+import { pgTable, serial, varchar, text, timestamp, integer } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
-import { createSchemaFactory } from "drizzle-zod"
 import { z } from "zod"
 
-// 系统健康检查表
-export const healthCheck = pgTable("health_check", {
-	id: serial("id").primaryKey(),
-	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow(),
-});
-
 // 用户表
-export const users = pgTable(
-	"users",
-	{
-		id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-		email: varchar("email", { length: 255 }).notNull().unique(),
-		name: varchar("name", { length: 128 }).notNull(),
-		password: text("password").notNull(),
-		role: varchar("role", { length: 20 }).notNull().default("student"), // 'teacher' or 'student'
-		avatar: text("avatar"),
-		createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-		updatedAt: timestamp("updated_at", { withTimezone: true }),
-	},
-	(table) => [
-		index("users_email_idx").on(table.email),
-		index("users_role_idx").on(table.role),
-	]
-);
+export const users = pgTable("users", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  name: varchar("name", { length: 128 }).notNull(),
+  password: text("password").notNull(),
+  role: varchar("role", { length: 20 }).notNull().default("student"),
+  avatar: text("avatar"),
+  created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updated_at: timestamp("updated_at", { withTimezone: true }),
+});
 
 // 班级表
-export const classes = pgTable(
-	"classes",
-	{
-		id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-		name: varchar("name", { length: 200 }).notNull(),
-		description: text("description"),
-		code: varchar("code", { length: 20 }).notNull().unique(), // 班级邀请码
-		teacherId: varchar("teacher_id", { length: 36 }).notNull(),
-		createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-		updatedAt: timestamp("updated_at", { withTimezone: true }),
-	},
-	(table) => [
-		index("classes_code_idx").on(table.code),
-		index("classes_teacher_id_idx").on(table.teacherId),
-	]
-);
+export const classes = pgTable("classes", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  invite_code: varchar("invite_code", { length: 20 }).notNull().unique(),
+  teacher_id: varchar("teacher_id", { length: 36 }).notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
 
 // 班级成员表
-export const classMembers = pgTable(
-	"class_members",
-	{
-		id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-		classId: varchar("class_id", { length: 36 }).notNull(),
-		studentId: varchar("student_id", { length: 36 }).notNull(),
-		joinedAt: timestamp("joined_at", { withTimezone: true }).defaultNow().notNull(),
-	},
-	(table) => [
-		index("class_members_class_id_idx").on(table.classId),
-		index("class_members_student_id_idx").on(table.studentId),
-	]
-);
+export const classMembers = pgTable("class_members", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  class_id: varchar("class_id", { length: 36 }).notNull(),
+  student_id: varchar("student_id", { length: 36 }).notNull(),
+  joined_at: timestamp("joined_at", { withTimezone: true }).defaultNow().notNull(),
+});
 
 // 作业表
-export const assignments = pgTable(
-	"assignments",
-	{
-		id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-		classId: varchar("class_id", { length: 36 }).notNull(),
-		title: varchar("title", { length: 200 }).notNull(),
-		description: text("description"),
-		requirements: text("requirements"),
-		dueDate: timestamp("due_date", { withTimezone: true }),
-		teacherId: varchar("teacher_id", { length: 36 }).notNull(),
-		status: varchar("status", { length: 20 }).notNull().default("active"), // 'active', 'closed', 'archived'
-		createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-		updatedAt: timestamp("updated_at", { withTimezone: true }),
-	},
-	(table) => [
-		index("assignments_class_id_idx").on(table.classId),
-		index("assignments_teacher_id_idx").on(table.teacherId),
-		index("assignments_status_idx").on(table.status),
-	]
-);
+export const assignments = pgTable("assignments", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  class_id: varchar("class_id", { length: 36 }).notNull(),
+  title: varchar("title", { length: 200 }).notNull(),
+  description: text("description"),
+  requirements: text("requirements"),
+  due_date: timestamp("due_date", { withTimezone: true }),
+  teacher_id: varchar("teacher_id", { length: 36 }).notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
 
 // 作业提交表
-export const submissions = pgTable(
-	"submissions",
-	{
-		id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-		assignmentId: varchar("assignment_id", { length: 36 }).notNull(),
-		studentId: varchar("student_id", { length: 36 }).notNull(),
-		content: text("content"), // 文字内容
-		imageUrl: text("image_url"), // 图片URL（对象存储中的key）
-		imageKey: text("image_key"), // 图片存储key
-		status: varchar("status", { length: 20 }).notNull().default("submitted"), // 'submitted', 'grading', 'graded'
-		score: integer("score"), // 分数
-		feedback: text("feedback"), // AI批改反馈
-		submittedAt: timestamp("submitted_at", { withTimezone: true }).defaultNow().notNull(),
-		gradedAt: timestamp("graded_at", { withTimezone: true }),
-	},
-	(table) => [
-		index("submissions_assignment_id_idx").on(table.assignmentId),
-		index("submissions_student_id_idx").on(table.studentId),
-		index("submissions_status_idx").on(table.status),
-	]
-);
+export const submissions = pgTable("submissions", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  assignment_id: varchar("assignment_id", { length: 36 }).notNull(),
+  student_id: varchar("student_id", { length: 36 }).notNull(),
+  content: text("content"),
+  image_url: text("image_url"),
+  image_key: text("image_key"),
+  status: varchar("status", { length: 20 }).notNull().default("submitted"),
+  score: integer("score"),
+  feedback: text("feedback"),
+  submitted_at: timestamp("submitted_at", { withTimezone: true }).defaultNow().notNull(),
+  graded_at: timestamp("graded_at", { withTimezone: true }),
+});
 
 // Zod schemas for validation
-const { createInsertSchema: createCoercedInsertSchema } = createSchemaFactory({
-	coerce: { date: true },
+export const insertUserSchema = z.object({
+  email: z.string().email(),
+  name: z.string().min(1),
+  password: z.string().min(6),
+  role: z.enum(['teacher', 'student']),
 });
 
-// User schemas
-export const insertUserSchema = createCoercedInsertSchema(users).pick({
-	email: true,
-	name: true,
-	password: true,
-	role: true,
+export const updateUserSchema = z.object({
+  name: z.string().min(1).optional(),
+  avatar: z.string().optional(),
+}).partial();
+
+export const insertClassSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+  teacherId: z.string().min(1),
 });
 
-export const updateUserSchema = createCoercedInsertSchema(users)
-	.pick({
-		name: true,
-		avatar: true,
-	})
-	.partial();
-
-// Class schemas
-export const insertClassSchema = createCoercedInsertSchema(classes).pick({
-	name: true,
-	description: true,
-	teacherId: true,
+export const insertAssignmentSchema = z.object({
+  classId: z.string().min(1),
+  title: z.string().min(1),
+  description: z.string().optional(),
+  requirements: z.string().optional(),
+  dueDate: z.string().optional(),
+  teacherId: z.string().min(1),
 });
 
-// Assignment schemas
-export const insertAssignmentSchema = createCoercedInsertSchema(assignments).pick({
-	classId: true,
-	title: true,
-	description: true,
-	requirements: true,
-	dueDate: true,
-	teacherId: true,
-});
-
-// Submission schemas
-export const insertSubmissionSchema = createCoercedInsertSchema(submissions).pick({
-	assignmentId: true,
-	studentId: true,
-	content: true,
-	imageUrl: true,
-	imageKey: true,
+export const insertSubmissionSchema = z.object({
+  assignmentId: z.string().min(1),
+  studentId: z.string().min(1),
+  content: z.string().optional(),
+  imageUrl: z.string().optional(),
+  imageKey: z.string().optional(),
 });
 
 // TypeScript types

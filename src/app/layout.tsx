@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { Inspector } from 'react-dev-inspector';
 import './globals.css';
 import { AuthProvider } from '@/hooks/useAuth';
 
@@ -23,13 +22,10 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const isDev = process.env.COZE_PROJECT_ENV === 'DEV';
-
   return (
     <html lang="zh-CN">
       <body className={`antialiased`}>
         <AuthProvider>
-          {isDev && <Inspector />}
           {children}
         </AuthProvider>
       </body>
