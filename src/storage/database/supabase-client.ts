@@ -16,24 +16,14 @@ function getSupabaseClient(token?: string): SupabaseClient {
       global: {
         headers: { Authorization: `Bearer ${token}` },
       },
-      db: {
-        timeout: 60000,
-      },
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
+      db: { timeout: 60000 },
+      auth: { autoRefreshToken: false, persistSession: false },
     });
   }
 
   return createClient(url, anonKey, {
-    db: {
-      timeout: 60000,
-    },
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
+    db: { timeout: 60000 },
+    auth: { autoRefreshToken: false, persistSession: false },
   });
 }
 
