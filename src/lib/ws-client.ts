@@ -16,6 +16,14 @@ export function createWsConnection(opts: WsOptions): {
   send: (msg: WsMessage) => void;
   close: () => void;
 } {
+  // 只在浏览器环境中运行
+  if (typeof window === 'undefined') {
+    return {
+      send: () => {},
+      close: () => {},
+    };
+  }
+
   const { path, onMessage, onOpen, onClose, reconnect = true, heartbeatMs = 30000 } = opts;
   let ws: WebSocket;
   let heartbeatTimer: ReturnType<typeof setInterval>;

@@ -9,12 +9,15 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const classId = searchParams.get('classId');
     const teacherId = searchParams.get('teacherId');
+    const assignmentId = searchParams.get('assignmentId');
     
     const client = getSupabaseClient();
     
     let query = client.from('assignments').select('*');
     
-    if (classId) {
+    if (assignmentId) {
+      query = query.eq('id', assignmentId);
+    } else if (classId) {
       query = query.eq('class_id', classId);
     } else if (teacherId) {
       query = query.eq('teacher_id', teacherId);
