@@ -7,6 +7,34 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Submission, Assignment } from '@/types';
 
+// 反馈显示组件 - 渲染Markdown格式的反馈
+function FeedbackDisplay({ content }: { content: string }) {
+  // 简单的Markdown渲染
+  const renderMarkdown = (text: string) => {
+    return text
+      // 标题
+      .replace(/^## (.*$)/gim, '<h2 class="text-lg font-bold mt-4 mb-2 text-gray-800">$1</h2>')
+      .replace(/^### (.*$)/gim, '<h3 class="text-base font-semibold mt-3 mb-2 text-gray-700">$1</h3>')
+      // 粗体
+      .replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-gray-900">$1</strong>')
+      // 列表项
+      .replace(/^- (.*$)/gim, '<li class="ml-4 my-1">$1</li>')
+      // 分数高亮
+      .replace(/(\d+)\s*\/\s*(\d+)\s*分/g, '<span class="text-blue-600 font-bold">$1/$2分</span>')
+      // 总分特殊处理
+      .replace(/总分[：:]\s*(\d+)\s*\/\s*100\s*分/g, '<span class="text-green-600 font-bold text-lg">总分：$1/100分</span>')
+      // 换行
+      .replace(/\n/g, '<br/>');
+  };
+
+  return (
+    <div 
+      className="text-sm leading-relaxed feedback-content"
+      dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
+    />
+  );
+}
+
 export default function SubmissionsPage() {
   const { user } = useAuth();
   const router = useRouter();
@@ -168,10 +196,10 @@ export default function SubmissionsPage() {
                     {submission.feedback && (
                       <div className="mb-4">
                         <div className="text-sm font-medium text-gray-700 mb-2">
-                          AI反馈：
+                          🤖 AI批改反馈：
                         </div>
-                        <div className="bg-blue-50 p-3 rounded text-sm whitespace-pre-wrap">
-                          {submission.feedback}
+                        <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-lg border border-blue-200">
+                          <FeedbackDisplay content={submission.feedback} />
                         </div>
                       </div>
                     )}

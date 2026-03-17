@@ -47,6 +47,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '未找到作业信息' }, { status: 404 });
     }
     
+    // 获取学生信息
+    const { data: student } = await client
+      .from('users')
+      .select('name')
+      .eq('id', submission.student_id)
+      .single();
+
     // 更新状态为批改中
     await client
       .from('submissions')
@@ -59,27 +66,78 @@ export async function POST(request: NextRequest) {
     const llmClient = new LLMClient(config, customHeaders);
     
     // 构建批改提示词
-    let promptText = `你是一位专业的教师，请批改学生的作业。
+    const promptText = `# 作业批改任务
 
-作业标题：${assignment?.title || '未知'}
-作业要求：${assignment?.requirements || '无特殊要求'}
-作业描述：${assignment?.description || '无描述'}
+## 📋 作业信息
+**作业标题**：${assignment.title}
+**作业描述**：${assignment.description || '无'}
+**作业要求**：${assignment.requirements || '无特殊要求'}
+${assignment.due_date ? `**截止时间**：${new Date(assignment.due_date).toLocaleString('zh-CN')}` : ''}
 
-学生提交的内容：${submission.content || '无文字内容'}
+## 👨‍🎓 学生信息
+**学生姓名**：${student?.name || '未知'}
+**提交时间**：${new Date(submission.submitted_at).toLocaleString('zh-CN')}
 
-请从以下几个方面进行评价：
-1. 内容完整性（是否完成了所有要求）
-2. 准确性（答案是否正确）
-3. 表达清晰度（逻辑是否清晰）
-4. 创新性（是否有独特的见解）
+## 📝 学生答案
+${submission.content || '（学生未提交文字内容，可能提交了图片作业）'}
 
-请给出详细的反馈和评分（0-100分）。`;
+---
+
+# 批改要求
+
+请像一位真实的小学/中学老师那样批改这份作业。你的反馈应该：
+
+1. **批改风格**：
+   - 用老师的口吻，温暖而专业
+   - 先肯定学生的努力和优点
+   - 再指出问题和改进建议
+   - 鼓励学生继续努力
+
+2. **评价维度**（总分100分）：
+   - **内容完整性**（30分）：是否完成了所有要求的内容
+   - **答案准确性**（30分）：答案是否正确
+   - **解题过程**（20分）：步骤是否清晰、逻辑是否合理
+   - **书写规范**（10分）：格式是否规范、表达是否清晰
+   - **创新思维**（10分）：是否有独特的思考角度
+
+3. **反馈格式**（请严格按照以下格式）：
+
+## 🎯 总体评价
+[用1-2句话概括学生的整体表现]
+
+## ✅ 优点
+- [列出学生做得好的地方，至少2-3点]
+
+## ❌ 问题和建议
+- [具体指出问题所在，并给出改进建议]
+
+## 💡 答案解析
+[如果答案有误，给出正确答案和解题思路]
+
+## 📊 评分明细
+- 内容完整性：XX/30分
+- 答案准确性：XX/30分
+- 解题过程：XX/20分
+- 书写规范：XX/10分
+- 创新思维：XX/10分
+- **总分：XX/100分**
+
+## 🌟 寄语
+[给学生一句鼓励的话]
+
+请确保反馈内容清晰、具体、有针对性，避免空话套话。`;
 
     // 准备消息
     const messages: any[] = [
       {
         role: 'system',
-        content: '你是一位经验丰富的教师，擅长批改各类作业，能够给出专业、详细的反馈。',
+        content: `你是一位经验丰富、温暖专业的中小学教师。你擅长：
+- 发现学生的闪光点
+- 用鼓励性的语言指出问题
+- 给出具体可行的改进建议
+- 像批改纸质作业那样认真对待每一份作业
+
+你的批改风格应该像一位真实的老师：既严格又温暖，既专业又亲和。`,
       },
     ];
     
@@ -91,10 +149,15 @@ export async function POST(request: NextRequest) {
           expireTime: 3600,
         });
         
+        console.log('图片URL生成成功，开始批改图片作业');
+        
         messages.push({
           role: 'user',
           content: [
-            { type: 'text', text: promptText },
+            { 
+              type: 'text', 
+              text: promptText + '\n\n📌 注意：学生提交了图片作业，请仔细查看图片内容后进行批改。如果图片中有文字，请准确识别；如果是数学题或其他题型，请根据图片内容给出专业的批改意见。'
+            },
             {
               type: 'image_url',
               image_url: {
@@ -107,7 +170,10 @@ export async function POST(request: NextRequest) {
       } catch (error) {
         console.error('生成图片URL失败:', error);
         // 如果图片URL生成失败，继续使用文字批改
-        messages.push({ role: 'user', content: promptText });
+        messages.push({ 
+          role: 'user', 
+          content: promptText + '\n\n⚠️ 注意：学生提交了图片作业，但图片加载失败，请根据学生提交的文字内容进行批改。'
+        });
       }
     } else {
       messages.push({ role: 'user', content: promptText });
@@ -126,9 +192,26 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // 提取分数（简单从反馈中提取）
-    const scoreMatch = feedback.match(/(\d+)分|分数[：:]\s*(\d+)/);
-    const score = scoreMatch ? parseInt(scoreMatch[1] || scoreMatch[2]) : 85;
+    // 提取分数（从评分明细中提取总分）
+    let score = 85; // 默认分数
+    
+    // 尝试多种格式提取总分
+    const patterns = [
+      /总分[：:]\s*(\d+)\s*\/\s*100\s*分/,
+      /总分[：:]\s*(\d+)\s*分/,
+      /\*\*总分[：:]\s*(\d+)\s*\/\s*100\s*分\*\*/,
+      /\*\*总分[：:]\s*(\d+)\s*分\*\*/,
+      /(\d+)\s*\/\s*100\s*分/,
+    ];
+    
+    for (const pattern of patterns) {
+      const match = feedback.match(pattern);
+      if (match && match[1]) {
+        score = parseInt(match[1]);
+        console.log(`成功提取分数: ${score}`);
+        break;
+      }
+    }
     
     // 更新提交记录
     const { error: updateError } = await client
