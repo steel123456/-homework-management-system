@@ -1,18 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { S3Storage } from 'coze-coding-dev-sdk';
-import { insertSubmissionSchema } from '@/storage/database/shared/schema';
 import { z } from 'zod';
 
-const storage = new S3Storage({
-  endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
-  accessKey: '',
-  secretKey: '',
-  bucketName: process.env.COZE_BUCKET_NAME,
-  region: 'cn-beijing',
-});
+function getStorage() {
+  const endpointUrl = process.env.COZE_BUCKET_ENDPOINT_URL;
+  const bucketName = process.env.COZE_BUCKET_NAME;
+  if (!endpointUrl || !bucketName) {
+    throw new Error('对象存储环境变量未配置');
+  }
+  return new S3Storage({
+    endpointUrl,
+    accessKey: '',
+    secretKey: '',
+    bucketName,
+    region: 'cn-beijing',
+  });
+}
 
-// 获取提交记录
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -20,49 +25,31 @@ export async function GET(request: NextRequest) {
     const studentId = searchParams.get('studentId');
     
     const client = getSupabaseClient();
-    
     let query = client.from('submissions').select('*');
-    
-    if (assignmentId) {
-      query = query.eq('assignment_id', assignmentId);
-    }
-    if (studentId) {
-      query = query.eq('student_id', studentId);
-    }
+    if (assignmentId) query = query.eq('assignment_id', assignmentId);
+    if (studentId) query = query.eq('student_id', studentId);
     
     const { data: submissions, error } = await query.order('submitted_at', { ascending: false });
+    if (error) return NextResponse.json({ error: '获取提交记录失败' }, { status: 500 });
     
-    if (error) {
-      return NextResponse.json({ error: '获取提交记录失败' }, { status: 500 });
-    }
-    
-    // 为有图片的提交生成访问URL
+    const storage = getStorage();
     const submissionsWithUrls = await Promise.all(
       (submissions || []).map(async (submission) => {
         if (submission.image_key) {
           try {
-            const imageUrl = await storage.generatePresignedUrl({
-              key: submission.image_key,
-              expireTime: 86400,
-            });
+            const imageUrl = await storage.generatePresignedUrl({ key: submission.image_key, expireTime: 86400 });
             return { ...submission, image_url: imageUrl };
-          } catch (error) {
-            console.error('生成图片URL失败:', error);
-            return submission;
-          }
+          } catch { return submission; }
         }
         return submission;
       })
     );
-    
     return NextResponse.json({ submissions: submissionsWithUrls });
   } catch (error) {
-    console.error('获取提交记录错误:', error);
     return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }
 }
 
-// 提交作业
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -71,48 +58,36 @@ export async function POST(request: NextRequest) {
     const content = formData.get('content') as string;
     const imageFile = formData.get('image') as File | null;
     
-    // 验证基本数据
-    const validatedData = insertSubmissionSchema.parse({
-      assignmentId,
-      studentId,
-      content: content || null,
-    });
+    if (!assignmentId || !studentId) {
+      return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
+    }
     
     const client = getSupabaseClient();
-    
     let imageKey: string | null = null;
     let imageUrl: string | null = null;
     
-    // 如果有图片，上传到对象存储
     if (imageFile && imageFile.size > 0) {
+      const storage = getStorage();
       const buffer = Buffer.from(await imageFile.arrayBuffer());
-      const fileName = `submissions/${assignmentId}/${studentId}_${Date.now()}_${imageFile.name}`;
+      const timestamp = Date.now();
+      const randomStr = Math.random().toString(36).substring(2, 8);
+      const ext = imageFile.name.split('.').pop() || 'jpg';
+      const fileName = `submissions/${assignmentId}/${studentId}_${timestamp}_${randomStr}.${ext}`;
       
-      try {
-        imageKey = await storage.uploadFile({
-          fileContent: buffer,
-          fileName,
-          contentType: imageFile.type,
-        });
-        
-        // 生成访问URL
-        imageUrl = await storage.generatePresignedUrl({
-          key: imageKey,
-          expireTime: 86400,
-        });
-      } catch (error) {
-        console.error('上传图片失败:', error);
-        return NextResponse.json({ error: '上传图片失败' }, { status: 500 });
-      }
+      imageKey = await storage.uploadFile({
+        fileContent: buffer,
+        fileName,
+        contentType: imageFile.type || 'image/jpeg',
+      });
+      imageUrl = await storage.generatePresignedUrl({ key: imageKey, expireTime: 86400 });
     }
     
-    // 创建提交记录（使用数据库字段名）
     const { data: submission, error } = await client
       .from('submissions')
       .insert({
-        assignment_id: validatedData.assignmentId,
-        student_id: validatedData.studentId,
-        content: validatedData.content,
+        assignment_id: assignmentId,
+        student_id: studentId,
+        content: content || null,
         image_key: imageKey,
         image_url: imageUrl,
         status: 'submitted',
@@ -120,24 +95,9 @@ export async function POST(request: NextRequest) {
       .select()
       .single();
     
-    if (error) {
-      console.error('提交作业失败:', error);
-      return NextResponse.json({ error: '提交作业失败' }, { status: 500 });
-    }
-    
-    return NextResponse.json({
-      message: '提交作业成功',
-      submission,
-    });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: '输入数据格式错误', details: error.issues },
-        { status: 400 }
-      );
-    }
-    
-    console.error('提交作业错误:', error);
-    return NextResponse.json({ error: '服务器错误' }, { status: 500 });
+    if (error) return NextResponse.json({ error: '提交作业失败', details: error.message }, { status: 500 });
+    return NextResponse.json({ message: '提交作业成功', submission });
+  } catch (error: any) {
+    return NextResponse.json({ error: '服务器错误', details: error.message }, { status: 500 });
   }
 }
