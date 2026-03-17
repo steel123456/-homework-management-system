@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { S3Storage } from 'coze-coding-dev-sdk';
-import { z } from 'zod';
 
 function getStorage() {
   const endpointUrl = process.env.COZE_BUCKET_ENDPOINT_URL;
@@ -45,13 +44,20 @@ export async function GET(request: NextRequest) {
       })
     );
     return NextResponse.json({ submissions: submissionsWithUrls });
-  } catch (error) {
-    return NextResponse.json({ error: '服务器错误' }, { status: 500 });
+  } catch (error: any) {
+    return NextResponse.json({ error: '服务器错误', details: error.message }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const supabaseUrl = process.env.COZE_SUPABASE_URL;
+    const supabaseKey = process.env.COZE_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseKey) {
+      return NextResponse.json({ error: '数据库配置错误' }, { status: 500 });
+    }
+    
     const formData = await request.formData();
     const assignmentId = formData.get('assignmentId') as string;
     const studentId = formData.get('studentId') as string;
@@ -82,16 +88,18 @@ export async function POST(request: NextRequest) {
       imageUrl = await storage.generatePresignedUrl({ key: imageKey, expireTime: 86400 });
     }
     
+    const insertData: any = {
+      assignment_id: assignmentId,
+      student_id: studentId,
+      status: 'submitted',
+    };
+    if (content?.trim()) insertData.content = content.trim();
+    if (imageKey) insertData.image_key = imageKey;
+    if (imageUrl) insertData.image_url = imageUrl;
+    
     const { data: submission, error } = await client
       .from('submissions')
-      .insert({
-        assignment_id: assignmentId,
-        student_id: studentId,
-        content: content || null,
-        image_key: imageKey,
-        image_url: imageUrl,
-        status: 'submitted',
-      })
+      .insert(insertData)
       .select()
       .single();
     
