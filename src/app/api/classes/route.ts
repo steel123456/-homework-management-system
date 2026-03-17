@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     const client = getSupabaseClient();
     
     // 生成班级邀请码
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     
     // 创建班级（使用数据库字段名）
     const { data: classData, error } = await client
@@ -82,14 +82,14 @@ export async function POST(request: NextRequest) {
         name: validatedData.name,
         description: validatedData.description,
         teacher_id: validatedData.teacherId,
-        code,
+        invite_code: inviteCode,
       })
       .select()
       .single();
     
     if (error) {
       console.error('创建班级失败:', error);
-      return NextResponse.json({ error: '创建班级失败' }, { status: 500 });
+      return NextResponse.json({ error: '创建班级失败', details: error.message }, { status: 500 });
     }
     
     return NextResponse.json({
