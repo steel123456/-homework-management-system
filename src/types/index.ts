@@ -11,7 +11,7 @@ export interface Class {
   id: string;
   name: string;
   description?: string;
-  code: string;
+  invite_code: string;
   teacher_id: string;
   created_at: string;
 }

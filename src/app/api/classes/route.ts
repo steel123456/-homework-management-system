@@ -9,10 +9,24 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const teacherId = searchParams.get('teacherId');
     const studentId = searchParams.get('studentId');
+    const classId = searchParams.get('classId');
     
     const client = getSupabaseClient();
     
-    if (teacherId) {
+    if (classId) {
+      // 获取单个班级信息
+      const { data: classInfo, error } = await client
+        .from('classes')
+        .select('*')
+        .eq('id', classId)
+        .single();
+      
+      if (error) {
+        return NextResponse.json({ error: '获取班级信息失败' }, { status: 500 });
+      }
+      
+      return NextResponse.json({ class: classInfo });
+    } else if (teacherId) {
       // 获取老师创建的班级
       const { data: classes, error } = await client
         .from('classes')

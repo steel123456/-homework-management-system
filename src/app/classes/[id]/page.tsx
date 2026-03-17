@@ -29,6 +29,7 @@ export default function ClassDetailPage() {
       // 获取班级信息
       const classResponse = await fetch(`/api/classes?classId=${classId}`);
       const classData = await classResponse.json();
+      setClassInfo(classData.class || null);
 
       // 获取班级成员
       const membersResponse = await fetch(`/api/classes/${classId}/members`);
@@ -39,12 +40,6 @@ export default function ClassDetailPage() {
       const assignmentsResponse = await fetch(`/api/assignments?classId=${classId}`);
       const assignmentsData = await assignmentsResponse.json();
       setAssignments(assignmentsData.assignments || []);
-
-      // 从作业列表中获取班级信息
-      if (assignmentsData.assignments && assignmentsData.assignments.length > 0) {
-        const firstAssignment = assignmentsData.assignments[0];
-        // 这里需要单独获取班级信息
-      }
     } catch (error) {
       console.error('获取数据失败:', error);
     } finally {
@@ -68,7 +63,7 @@ export default function ClassDetailPage() {
             <h1 className="text-2xl font-bold">{classInfo?.name || '班级详情'}</h1>
             {classInfo && (
               <p className="text-gray-600 mt-1">
-                邀请码：<span className="font-mono font-bold">{classInfo.code}</span>
+                邀请码：<span className="font-mono font-bold text-blue-600 text-lg">{classInfo.invite_code}</span>
               </p>
             )}
           </div>

@@ -230,7 +230,7 @@ export default function DashboardPage() {
                         </CardHeader>
                         <CardContent>
                           <div className="text-sm text-gray-500">
-                            邀请码: {cls.code}
+                            邀请码: <span className="font-mono font-bold text-blue-600">{cls.invite_code}</span>
                           </div>
                         </CardContent>
                       </Card>
