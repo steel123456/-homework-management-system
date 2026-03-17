@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     const { data: classData, error: classError } = await client
       .from('classes')
       .select('*')
-      .eq('code', validatedData.code)
+      .eq('invite_code', validatedData.code)
       .single();
     
     if (classError || !classData) {
