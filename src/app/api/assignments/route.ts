@@ -45,10 +45,17 @@ export async function POST(request: NextRequest) {
     
     const client = getSupabaseClient();
     
-    // 创建作业
+    // 创建作业（使用数据库字段名）
     const { data: assignment, error } = await client
       .from('assignments')
-      .insert(validatedData)
+      .insert({
+        class_id: validatedData.classId,
+        title: validatedData.title,
+        description: validatedData.description,
+        requirements: validatedData.requirements,
+        due_date: validatedData.dueDate,
+        teacher_id: validatedData.teacherId,
+      })
       .select()
       .single();
     

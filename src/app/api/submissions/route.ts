@@ -106,11 +106,13 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // 创建提交记录
+    // 创建提交记录（使用数据库字段名）
     const { data: submission, error } = await client
       .from('submissions')
       .insert({
-        ...validatedData,
+        assignment_id: validatedData.assignmentId,
+        student_id: validatedData.studentId,
+        content: validatedData.content,
         image_key: imageKey,
         image_url: imageUrl,
         status: 'submitted',

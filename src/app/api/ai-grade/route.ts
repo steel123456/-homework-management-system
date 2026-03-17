@@ -26,12 +26,25 @@ export async function POST(request: NextRequest) {
     // 获取提交记录
     const { data: submission, error: submissionError } = await client
       .from('submissions')
-      .select('*, assignments(*)')
+      .select('*')
       .eq('id', validatedData.submissionId)
       .single();
     
     if (submissionError || !submission) {
+      console.error('获取提交记录失败:', submissionError);
       return NextResponse.json({ error: '未找到提交记录' }, { status: 404 });
+    }
+    
+    // 获取作业信息
+    const { data: assignment, error: assignmentError } = await client
+      .from('assignments')
+      .select('*')
+      .eq('id', submission.assignment_id)
+      .single();
+    
+    if (assignmentError || !assignment) {
+      console.error('获取作业信息失败:', assignmentError);
+      return NextResponse.json({ error: '未找到作业信息' }, { status: 404 });
     }
     
     // 更新状态为批改中
@@ -46,7 +59,6 @@ export async function POST(request: NextRequest) {
     const llmClient = new LLMClient(config, customHeaders);
     
     // 构建批改提示词
-    const assignment = submission.assignments as any;
     let promptText = `你是一位专业的教师，请批改学生的作业。
 
 作业标题：${assignment?.title || '未知'}

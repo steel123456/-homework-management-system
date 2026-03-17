@@ -75,11 +75,13 @@ export async function POST(request: NextRequest) {
     // 生成班级邀请码
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     
-    // 创建班级
+    // 创建班级（使用数据库字段名）
     const { data: classData, error } = await client
       .from('classes')
       .insert({
-        ...validatedData,
+        name: validatedData.name,
+        description: validatedData.description,
+        teacher_id: validatedData.teacherId,
         code,
       })
       .select()
